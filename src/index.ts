@@ -51,6 +51,10 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ ok: true })
 })
@@ -80,12 +84,15 @@ app.post('/api/tasks', async (req: Request<{}, any, CreateTaskRequest>, res: Res
   try {
     const { username, email, text } = req.body
     if (!username || !email || !text) {
-      return res.status(400).json({ error: 'username_email_text_required' })
+      return res.status(400).json({ error: 'Все поля обязательны для заполнения' })
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Некорректный e-mail' })
     }
     const created = await createTask({ username, email, text })
     res.status(201).json(created)
   } catch (e: unknown) {
-    res.status(500).json({ error: 'failed_to_create' })
+    res.status(500).json({ error: 'Ошибка при создании задачи' })
   }
 })
 
