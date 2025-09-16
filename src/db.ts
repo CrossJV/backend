@@ -41,7 +41,7 @@ export function initDb(): Promise<void> {
 					edited_by_admin INTEGER NOT NULL DEFAULT 0,
 					created_at TEXT NOT NULL DEFAULT (datetime('now'))
 				)`,
-				(err) => {
+				(err: Error | null) => {
 					if (err) return reject(err)
 					resolve()
 				}
@@ -55,11 +55,12 @@ export function createTask(input: CreateTaskInput): Promise<TaskRow> {
 		db.run(
 			`INSERT INTO tasks (username, email, text) VALUES (?, ?, ?)`,
 			[input.username, input.email, input.text],
-			function (this: sqlite3.RunResult, err) {
+			function (this: sqlite3.RunResult, err: Error | null) {
 				if (err) return reject(err)
-				db.get(`SELECT * FROM tasks WHERE id = ?`, [this.lastID], (getErr, row) => {
+				db.get(`SELECT * FROM tasks WHERE id = ?`, [this.lastID], (getErr: Error | null, row: TaskRow | undefined) => {
 					if (getErr) return reject(getErr)
-					resolve(row as TaskRow)
+					if (!row) return reject(new Error('Task not found after creation'))
+					resolve(row)
 				})
 			}
 		)
@@ -68,7 +69,7 @@ export function createTask(input: CreateTaskInput): Promise<TaskRow> {
 
 export function updateTask(id: number, input: UpdateTaskInput): Promise<TaskRow | null> {
 	return new Promise((resolve, reject) => {
-		db.get(`SELECT * FROM tasks WHERE id = ?`, [id], (selErr, existing: TaskRow) => {
+		db.get(`SELECT * FROM tasks WHERE id = ?`, [id], (selErr: Error | null, existing: TaskRow | undefined) => {
 			if (selErr) return reject(selErr)
 			if (!existing) return resolve(null)
 
@@ -90,11 +91,11 @@ export function updateTask(id: number, input: UpdateTaskInput): Promise<TaskRow 
 			if (setParts.length === 0) return resolve(existing)
 
 			values.push(id)
-			db.run(`UPDATE tasks SET ${setParts.join(', ')} WHERE id = ?`, values, (updErr) => {
+			db.run(`UPDATE tasks SET ${setParts.join(', ')} WHERE id = ?`, values, (updErr: Error | null) => {
 				if (updErr) return reject(updErr)
-				db.get(`SELECT * FROM tasks WHERE id = ?`, [id], (getErr, row) => {
+				db.get(`SELECT * FROM tasks WHERE id = ?`, [id], (getErr: Error | null, row: TaskRow | undefined) => {
 					if (getErr) return reject(getErr)
-					resolve(row as TaskRow)
+					resolve(row || null)
 				})
 			})
 		})
@@ -120,13 +121,13 @@ export function listTasks(
 	const orderSql = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
 
 	return new Promise((resolve, reject) => {
-		db.get(`SELECT COUNT(*) as cnt FROM tasks`, [], (cntErr, cntRow: any) => {
+		db.get(`SELECT COUNT(*) as cnt FROM tasks`, [], (cntErr: Error | null, cntRow: { cnt: number } | undefined) => {
 			if (cntErr) return reject(cntErr)
 			const total = cntRow?.cnt ?? 0
 			db.all(
 				`SELECT * FROM tasks ORDER BY ${sortColumn} ${orderSql} LIMIT ? OFFSET ?`,
 				[limit, offset],
-				(listErr, rows: TaskRow[]) => {
+				(listErr: Error | null, rows: TaskRow[]) => {
 					if (listErr) return reject(listErr)
 					resolve({
 						items: rows,
@@ -138,4 +139,4 @@ export function listTasks(
 			)
 		})
 	})
-} 
+}
